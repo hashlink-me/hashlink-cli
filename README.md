@@ -1,6 +1,6 @@
 # HashLink CLI Tool & OpenClaw Agent Skill
 
-HashLink CLI is a crypto token research tool built for AI agents, trading bots, and professional traders who need fast, reliable intelligence from a single token address. Instead of jumping across Dexscreener, project websites, and security tools, HashLink returns one clean, structured markdown report with market data, important links, chain context, and token safety signals. 
+[HashLink CLI](https://hashlink.me/agent-cli) is a crypto token research tool built for AI agents, trading bots, and professional traders who need fast, reliable intelligence from a single token address. Instead of jumping across Dexscreener, project websites, and security tools, HashLink returns one clean, structured markdown report with market data, important links, chain context, and token safety signals. 
 
 It supports Ethereum, Base, BSC, and Solana with chain-aware routing, including RugCheck for Solana risk scoring and GoPlus security checks for EVM contract risk analysis. 
 
