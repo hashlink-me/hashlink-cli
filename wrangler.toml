@@ -1,0 +1,14 @@
+name = "hashlink-info"
+main = "src/worker.ts"
+compatibility_date = "2026-03-06"
+compatibility_flags = ["nodejs_compat"]
+
+# Use one of these deployment modes:
+# 1) Bind custom domain from Cloudflare Dashboard: data.hashlink.me
+# 2) Uncomment the route below for route-based publishing in a zone.
+# routes = [
+#   { pattern = "data.hashlink.me/*", zone_name = "hashlink.me" }
+# ]
+
+[observability]
+enabled = true

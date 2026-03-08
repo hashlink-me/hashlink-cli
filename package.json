@@ -1,0 +1,21 @@
+{
+  "name": "hashlink-cli",
+  "private": true,
+  "type": "module",
+  "version": "0.15.3",
+  "description": "HashLink Info API for token contract extraction and summarization.",
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "dev:worker": "bunx wrangler dev src/worker.ts",
+    "deploy": "bunx wrangler deploy src/worker.ts",
+    "start": "bun run src/server.ts"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.34.0",
+    "cheerio": "^1.0.0",
+    "elysia": "^1.3.12"
+  },
+  "devDependencies": {
+    "wrangler": "^4.32.0"
+  }
+}
