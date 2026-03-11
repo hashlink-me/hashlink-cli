@@ -9,9 +9,9 @@ This is the LLM proxy used by HashLink Worker.
 
 ## Required environment variables
 
-- `OPENAI_API_KEY`
+- `VENICE_API_KEY`
 - `LLM_PROXY_TOKEN`
-- `OPENAI_MODEL` (optional, default: `gpt-5-nano`)
+- `VENICE_MODEL` (optional, default: `grok-41-fast`)
 - `PORT` (optional, default: `3000`)
 
 ## Local run
@@ -38,5 +38,5 @@ curl -s https://<your-proxy-domain>/health
 curl -s -X POST https://<your-proxy-domain>/summarize \
   -H "content-type: application/json" \
   -H "x-llm-proxy-token: <LLM_PROXY_TOKEN>" \
-  -d '{"model":"gpt-5-nano","prompt":"Summarize Bitcoin in 2 sentences."}'
+  -d '{"model":"grok-41-fast","prompt":"Summarize Bitcoin in 2 sentences."}'
 ```

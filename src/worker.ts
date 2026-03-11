@@ -3,8 +3,8 @@ import { createHandler } from './index'
 export type Env = {
   UPSTASH_REDIS_REST_URL?: string
   UPSTASH_REDIS_REST_TOKEN?: string
-  LLM_PROXY_URL?: string
-  LLM_PROXY_TOKEN?: string
+  VENICE_API_KEY?: string
+  VENICE_MODEL?: string
   ADMIN_TOKEN?: string
 }
 
@@ -16,8 +16,8 @@ const buildHandler = (env: Env): CachedHandler => {
   handler = createHandler({
     upstashUrl: env.UPSTASH_REDIS_REST_URL,
     upstashToken: env.UPSTASH_REDIS_REST_TOKEN,
-    llmProxyUrl: env.LLM_PROXY_URL,
-    llmProxyToken: env.LLM_PROXY_TOKEN,
+    veniceApiKey: env.VENICE_API_KEY,
+    veniceModel: env.VENICE_MODEL,
     adminToken: env.ADMIN_TOKEN,
   })
   return handler

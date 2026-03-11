@@ -1,6 +1,6 @@
-const OPENAI_API_KEY = Bun.env.OPENAI_API_KEY
+const VENICE_API_KEY = Bun.env.VENICE_API_KEY
 const LLM_PROXY_TOKEN = Bun.env.LLM_PROXY_TOKEN
-const DEFAULT_MODEL = Bun.env.OPENAI_MODEL || 'gpt-5-nano'
+const DEFAULT_MODEL = Bun.env.VENICE_MODEL || 'grok-41-fast'
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -26,8 +26,8 @@ Bun.serve({
       return json({ error: 'unauthorized' }, 401)
     }
 
-    if (!OPENAI_API_KEY) {
-      return json({ error: 'missing_openai_key' }, 500)
+    if (!VENICE_API_KEY) {
+      return json({ error: 'missing_venice_key' }, 500)
     }
 
     let body: any
@@ -38,20 +38,26 @@ Bun.serve({
     }
 
     const prompt = String(body?.prompt || '').trim()
-    if (!prompt) return json({ error: 'missing_prompt' }, 400)
+    const messages = Array.isArray(body?.messages) ? body.messages : null
+    if (!prompt && (!messages || messages.length === 0)) {
+      return json({ error: 'missing_prompt' }, 400)
+    }
 
     const model = String(body?.model || DEFAULT_MODEL)
 
     try {
-      const r = await fetch('https://api.openai.com/v1/responses', {
+      const r = await fetch('https://api.venice.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          Authorization: `Bearer ${VENICE_API_KEY}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({
           model,
-          input: prompt,
+          messages:
+            messages && messages.length > 0
+              ? messages
+              : [{ role: 'user', content: prompt }],
         }),
       })
 
@@ -67,16 +73,13 @@ Bun.serve({
         return json({ error: 'invalid_llm_json', detail: raw }, 502)
       }
 
-      const textFromOutput = Array.isArray(payload?.output)
-        ? payload.output
-            .flatMap((o: any) => (Array.isArray(o?.content) ? o.content : []))
-            .filter((c: any) => c?.type === 'output_text' || c?.type === 'text')
-            .map((c: any) => String(c?.text || ''))
+      const rawContent = payload?.choices?.[0]?.message?.content
+      const text = Array.isArray(rawContent)
+        ? rawContent
+            .map((c: any) => String(c?.text || c?.content || ''))
             .join('\n')
             .trim()
-        : ''
-
-      const text = String(payload?.output_text || textFromOutput || '').trim()
+        : String(rawContent || '').trim()
       if (!text) {
         return json({ error: 'empty_output', detail: raw }, 502)
       }

@@ -5,8 +5,8 @@ const port = Number(process.env.PORT || 3000)
 const handler = createHandler({
   upstashUrl: process.env.UPSTASH_REDIS_REST_URL,
   upstashToken: process.env.UPSTASH_REDIS_REST_TOKEN,
-  llmProxyUrl: process.env.LLM_PROXY_URL,
-  llmProxyToken: process.env.LLM_PROXY_TOKEN,
+  veniceApiKey: process.env.VENICE_API_KEY,
+  veniceModel: process.env.VENICE_MODEL,
   adminToken: process.env.ADMIN_TOKEN,
 })
 

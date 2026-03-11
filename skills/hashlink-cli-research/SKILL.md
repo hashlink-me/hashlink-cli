@@ -12,9 +12,36 @@ Run this workflow for token research from terminal.
 - Token address/mint
 - Chain context (`ethereum`, `base`, `bsc`, `solana`, etc.)
 
+## Step 0: Install HashLink CLI shortcut (`ca`)
+
+Install from repo:
+
+```bash
+bash ./scripts/install.sh
+```
+
+Install from GitHub:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hashlink-me/hashlink-cli/main/scripts/install.sh | bash
+```
+
+Reload shell:
+
+```bash
+source ~/.zshrc
+```
+
 ## Step 1: Fetch HashLink research brief
 
 Use HashLink as the first-pass intelligence source.
+Always use the `ca` command first.
+
+```bash
+ca <TOKEN_ADDRESS>
+```
+
+If `ca` is not installed, fallback to:
 
 ```bash
 curl -s "https://data.hashlink.me/<TOKEN_ADDRESS>"

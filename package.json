@@ -1,8 +1,8 @@
 {
-  "name": "hashlink-cli",
+  "name": "hashlink-info",
   "private": true,
   "type": "module",
-  "version": "0.15.3",
+  "version": "1.0.0",
   "description": "HashLink Info API for token contract extraction and summarization.",
   "scripts": {
     "dev": "bun run src/server.ts",

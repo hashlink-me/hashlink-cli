@@ -1,6 +1,6 @@
 # HashLink CLI Tool & OpenClaw Agent Skill
 
-[HashLink CLI](https://hashlink.me/agent-cli) is a crypto token research tool built for AI agents, trading bots, and professional traders who need fast, reliable intelligence from a single token address. Instead of jumping across Dexscreener, project websites, and security tools, HashLink returns one clean, structured markdown report with market data, important links, chain context, and token safety signals. 
+HashLink CLI is a crypto token research tool built for AI agents, trading bots, and professional traders who need fast, reliable intelligence from a single token address. Instead of jumping across Dexscreener, project websites, and security tools, HashLink returns one clean, structured markdown report with market data, important links, chain context, and token safety signals. 
 
 It supports Ethereum, Base, BSC, and Solana with chain-aware routing, including RugCheck for Solana risk scoring and GoPlus security checks for EVM contract risk analysis. 
 
@@ -14,6 +14,33 @@ You can use the public hosted endpoint for free:
 
 ```bash
 curl "https://data.hashlink.me/<TOKEN_ADDRESS>"
+```
+
+## Install terminal shortcut (`ca`)
+
+Install from this repo:
+
+```bash
+bash ./scripts/install.sh
+```
+
+Install directly from GitHub:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hashlink-me/hashlink-cli/main/scripts/install.sh | bash
+```
+
+Reload your shell:
+
+```bash
+source ~/.zshrc
+```
+
+Use it:
+
+```bash
+ca <TOKEN_ADDRESS>
+ca <TOKEN_ADDRESS> refresh=true
 ```
 
 ## API endpoints
@@ -69,20 +96,16 @@ This keeps market data fresh while reducing LLM and security API cost.
 
 - Cloudflare Worker (API runtime)
 - Upstash Redis (cache + rate limiting)
-- Railway Function (Bun) as LLM proxy
+- Venice API key for summarization
 
 ### 3) Deploy LLM proxy (Railway)
 
 Set Railway variables:
 
-- `OPENAI_API_KEY`
-- `LLM_PROXY_TOKEN`
-- `OPENAI_MODEL` (optional, default `gpt-5-nano`)
+- `VENICE_API_KEY`
+- `VENICE_MODEL` (optional, default `grok-41-fast`)
 
-Expose:
 
-- `POST /summarize`
-- `GET /health`
 
 ### 4) Configure Worker secrets
 
@@ -90,8 +113,7 @@ Expose:
 bunx wrangler secret put ADMIN_TOKEN
 bunx wrangler secret put UPSTASH_REDIS_REST_URL
 bunx wrangler secret put UPSTASH_REDIS_REST_TOKEN
-bunx wrangler secret put LLM_PROXY_URL
-bunx wrangler secret put LLM_PROXY_TOKEN
+bunx wrangler secret put VENICE_API_KEY
 ```
 
 ### 5) Run locally

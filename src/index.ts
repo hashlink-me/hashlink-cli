@@ -4,8 +4,8 @@ import { load } from 'cheerio'
 type AppConfig = {
   upstashUrl?: string
   upstashToken?: string
-  llmProxyUrl?: string
-  llmProxyToken?: string
+  veniceApiKey?: string
+  veniceModel?: string
   adminToken?: string
 }
 
@@ -24,7 +24,7 @@ const SUMMARY_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60
 const MARKET_CACHE_TTL_SECONDS = 5 * 60
 const SAFETY_CACHE_TTL_SECONDS = 24 * 60 * 60
 const SAFETY_FETCH_BUDGET_MS = 1800
-const OPENAI_MODEL = 'gpt-5-nano'
+const DEFAULT_VENICE_MODEL = 'grok-41-fast'
 
 interface CacheService {
   get<T>(key: string): Promise<T | null>
@@ -138,7 +138,6 @@ interface SummaryPayload {
     telegram?: string
   }
   summaryText: string
-  hasWebsiteText: boolean
 }
 
 interface MarketPayload {
@@ -170,7 +169,6 @@ interface CachedPayload<T> {
 }
 
 interface WarmTokenCandidate {
-  chainId?: string
   tokenAddress?: string
 }
 
@@ -334,14 +332,13 @@ const parseWarmCandidates = (payload: unknown): WarmTokenCandidate[] => {
   return payload
     .map((item) => {
       const record = item as Record<string, unknown>
-      const chainId = typeof record.chainId === 'string' ? record.chainId : undefined
       const tokenAddress =
         typeof record.tokenAddress === 'string'
           ? record.tokenAddress
           : typeof record.address === 'string'
             ? record.address
             : undefined
-      return { chainId, tokenAddress }
+      return { tokenAddress }
     })
     .filter((item) => Boolean(item.tokenAddress))
 }
@@ -446,7 +443,6 @@ const emptySummaryPayload = (): SummaryPayload => ({
   ticker: 'N/A',
   links: {},
   summaryText: 'Summary unavailable.',
-  hasWebsiteText: false,
 })
 
 const fetchTokenSafety = async (address: string, pair: TokenPair): Promise<SafetyPayload | null> => {
@@ -727,8 +723,8 @@ const summarizeMarkdown = async (params: {
   links: ReturnType<typeof extractSocialLinks>
   pair: TokenPair
   scrape: ScrapeResult | null
-  llmProxyUrl: string | null
-  llmProxyToken: string | null
+  veniceApiKey: string | null
+  veniceModel: string
   strictLlmOutput?: boolean
 }): Promise<string> => {
   const {
@@ -738,15 +734,15 @@ const summarizeMarkdown = async (params: {
     links,
     pair,
     scrape,
-    llmProxyUrl,
-    llmProxyToken,
+    veniceApiKey,
+    veniceModel,
     strictLlmOutput,
   } = params
   const sourceText = compactWhitespace(
     [scrape?.title, scrape?.description, scrape?.bodyText].filter(Boolean).join('\n\n'),
   )
 
-  if (!llmProxyUrl || !llmProxyToken) {
+  if (!veniceApiKey) {
     if (strictLlmOutput) {
       throw new Error('LLM_DISABLED')
     }
@@ -756,10 +752,10 @@ const summarizeMarkdown = async (params: {
   const truncated = truncateByTokens(sourceText, 4000)
 
   const prompt =
-    `System: You are a crypto project analyst working for a quant firm, your role is to summarize crypto token project. It could be a defi protocol, or even meme coins.\n` +
-    `Task: Write a complete summary in exactly 2 short paragraphs.\n` +
+    `System: You are a crypto project analyst working for a quant firm, your role is to summarize crypto token project. It could be a defi protocol, meme tokens or even shitcoin.\n` +
+    `Task: Write a complete summary in exactly 2 short paragraphs. Use your deep knowledge in crypto twitter and web3. Explain inside jokes, figure out the meme context and its significance in the community.\n` +
     `Goal: Extract key points, core concepts, and main themes of the token from the website content.\n` +
-    `Constraints: Use given facts only, no CTA text, no menus, no copied blocks, no markdown headings, no comtract address.\n` +
+    `Constraints: Use given facts only, no CTA text, no menus, no copied blocks, no markdown headings, no contract address.\n` +
     `Tone: neutral analyst language.\n\n` +
     `Project: ${projectName} (${ticker})\n` +
     'Website contents:\n' +
@@ -771,29 +767,41 @@ const summarizeMarkdown = async (params: {
     '4) Try your best to understand the token and project. Summarize meaning; do not quote or copy long fragments verbatim.'
 
   try {
-    const response = await fetch(llmProxyUrl, {
+    const response = await fetch('https://api.venice.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
+        Authorization: `Bearer ${veniceApiKey}`,
         'content-type': 'application/json',
-        'x-llm-proxy-token': llmProxyToken,
       },
       body: JSON.stringify({
-        model: OPENAI_MODEL,
-        prompt,
+        model: veniceModel,
+        messages: [{ role: 'user', content: prompt }],
       }),
     })
 
     const raw = await response.text()
     if (!response.ok) {
-      throw new Error(`[LLM Proxy Error]: ${response.status} ${response.statusText} ${raw}`)
+      throw new Error(`[Venice Error]: ${response.status} ${response.statusText} ${raw}`)
     }
-    const payload = JSON.parse(raw) as { text?: string }
-    const outputText = (payload.text || '').trim()
+    const payload = JSON.parse(raw) as {
+      choices?: Array<{
+        message?: {
+          content?: string | Array<{ text?: string; content?: string }>
+        }
+      }>
+    }
+    const content = payload.choices?.[0]?.message?.content
+    const outputText = Array.isArray(content)
+      ? content
+          .map((item) => String(item?.text || item?.content || ''))
+          .join('\n')
+          .trim()
+      : String(content || '').trim()
 
     const summaryText = outputText.trim()
     if (!summaryText) {
       if (strictLlmOutput) {
-        throw new Error('LLM_EMPTY:OpenAI returned empty text')
+        throw new Error('LLM_EMPTY:Venice returned empty text')
       }
       return fallbackSummaryFromScrape(scrape)
     }
@@ -801,7 +809,7 @@ const summarizeMarkdown = async (params: {
   } catch (error) {
     if (strictLlmOutput) {
       const message =
-        error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown OpenAI error'
+        error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown Venice error'
       throw new Error(`LLM_FAILED:${message}`)
     }
     return fallbackSummaryFromScrape(scrape)
@@ -817,8 +825,8 @@ const validateAdmin = (request: Request, adminToken?: string): boolean => {
 
 export const createHandler = (config?: AppConfig) => {
   const adminToken = config?.adminToken
-  const llmProxyUrl = config?.llmProxyUrl || null
-  const llmProxyToken = config?.llmProxyToken || null
+  const veniceApiKey = config?.veniceApiKey || null
+  const veniceModel = config?.veniceModel || DEFAULT_VENICE_MODEL
 
   const cacheService: CacheService =
     config?.upstashUrl && config?.upstashToken
@@ -866,7 +874,7 @@ export const createHandler = (config?: AppConfig) => {
       return jsonResponse({
         status: 'ok',
         cache: config?.upstashUrl ? 'upstash' : 'memory',
-        llm: llmProxyUrl && llmProxyToken ? `proxy:${OPENAI_MODEL}` : 'disabled',
+        llm: veniceApiKey ? `venice:${veniceModel}` : 'disabled',
         timestamp: nowIso(),
       })
     }
@@ -945,8 +953,8 @@ export const createHandler = (config?: AppConfig) => {
                 links,
                 pair,
                 scrape,
-                llmProxyUrl,
-                llmProxyToken,
+                veniceApiKey,
+                veniceModel,
                 strictLlmOutput: false,
               })
               const summaryPayload: SummaryPayload = {
@@ -954,7 +962,6 @@ export const createHandler = (config?: AppConfig) => {
                 ticker: pair.baseToken?.symbol || 'N/A',
                 links,
                 summaryText: llmOutput,
-                hasWebsiteText: Boolean(scrape?.bodyText),
               }
               await safeSet(
                 summaryCacheKey(address),
@@ -1062,8 +1069,8 @@ export const createHandler = (config?: AppConfig) => {
                 links,
                 pair: sourcePair,
                 scrape,
-                llmProxyUrl,
-                llmProxyToken,
+                veniceApiKey,
+                veniceModel,
                 strictLlmOutput: llmOnly,
               })
 
@@ -1072,7 +1079,6 @@ export const createHandler = (config?: AppConfig) => {
                 ticker,
                 links,
                 summaryText: llmOutput,
-                hasWebsiteText: Boolean(scrape?.bodyText),
               }
             })()
           : Promise.resolve(null)
@@ -1167,7 +1173,7 @@ export const createHandler = (config?: AppConfig) => {
             return jsonResponse({
               error: 'LLM summary unavailable',
               detail: error.message,
-              hint: 'Check LLM_PROXY_URL and LLM_PROXY_TOKEN, then verify proxy/model/quota/provider availability.',
+              hint: 'Check VENICE_API_KEY and VENICE_MODEL, then verify provider availability and quota.',
             }, 502)
           }
           return textResponse('LLM summary unavailable', 502)
