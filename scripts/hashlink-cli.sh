@@ -18,3 +18,14 @@ ca() {
 
   curl -s "$url"
 }
+
+price() {
+  if [ -z "$1" ]; then
+    echo "Usage: price <token_contract>"
+    echo "Example: price 0x6982508145454Ce325dDbE47a25d4ec3d2311933"
+    return 1
+  fi
+
+  token="$1"
+  curl -s "https://data.hashlink.me/price/$token"
+}

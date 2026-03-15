@@ -32,6 +32,12 @@ Reload shell:
 source ~/.zshrc
 ```
 
+If running inside an agent shell that does not load shell config, use:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 ## Step 1: Fetch HashLink research brief
 
 Use HashLink as the first-pass intelligence source.
@@ -47,11 +53,26 @@ If `ca` is not installed, fallback to:
 curl -s "https://data.hashlink.me/<TOKEN_ADDRESS>"
 ```
 
-## Step 2: Build final research conclusion
+## Step 2: Fetch near-realtime price data when needed
+
+Use `price` for the fast market snapshot endpoint.
+
+```bash
+price <TOKEN_ADDRESS>
+```
+
+If `price` is not installed, fallback to:
+
+```bash
+curl -s "https://data.hashlink.me/price/<TOKEN_ADDRESS>"
+```
+
+## Step 3: Build final research conclusion
 
 Combine:
 
 - HashLink summary (project thesis, links, market context, safety section)
+- Price snapshot when short-interval market updates are needed
 
 Output must clearly separate:
 

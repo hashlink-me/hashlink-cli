@@ -36,11 +36,18 @@ Reload your shell:
 source ~/.zshrc
 ```
 
+If you are in an agent shell or a non-interactive environment, run:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 Use it:
 
 ```bash
 ca <TOKEN_ADDRESS>
 ca <TOKEN_ADDRESS> refresh=true
+price <TOKEN_ADDRESS>
 ```
 
 ## API endpoints

@@ -22,6 +22,7 @@ const RATE_LIMIT_PER_MINUTE = 60
 const REFRESH_LIMIT_PER_MINUTE = 5
 const SUMMARY_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60
 const MARKET_CACHE_TTL_SECONDS = 5 * 60
+const PRICE_CACHE_TTL_SECONDS = 30
 const SAFETY_CACHE_TTL_SECONDS = 24 * 60 * 60
 const SAFETY_FETCH_BUDGET_MS = 1800
 const DEFAULT_VENICE_MODEL = 'grok-41-fast'
@@ -371,6 +372,7 @@ const fetchWarmCandidates = async (limit: number): Promise<string[]> => {
 
 const summaryCacheKey = (address: string) => `token-summary:${address}`
 const marketCacheKey = (address: string) => `token-market:${address}`
+const priceCacheKey = (address: string) => `token-price:${address}`
 const safetyCacheKey = (address: string) => `token-safety:${address}`
 const rlKey = (type: 'rl' | 'refresh', ip: string) => `rl:${type}:${ip}`
 
@@ -432,6 +434,23 @@ const renderMarkdown = (
     'Token Research Powered by Hashlink.me',
     '',
   ].join('\n')
+}
+
+const renderPricePayload = (address: string, pair: TokenPair) => {
+  const marketCap = pair.marketCap ?? pair.fdv
+  return {
+    address,
+    chain: formatChain(pair.chainId),
+    chainId: formatChainId(pair.chainId),
+    dexId: pair.dexId || 'N/A',
+    priceUsd: formatUsd(pair.priceUsd),
+    priceChange24h: formatPct(pair.priceChange?.h24),
+    volume24h: formatUsd(pair.volume?.h24),
+    liquidityUsd: formatUsd(pair.liquidity?.usd),
+    marketCap: formatUsd(marketCap),
+    cachedForSeconds: PRICE_CACHE_TTL_SECONDS,
+    timestamp: nowIso(),
+  }
 }
 
 const fallbackSummaryFromScrape = (scrape: ScrapeResult | null): string =>
@@ -585,15 +604,18 @@ const fetchDexScreener = async (address: string): Promise<{ pair: TokenPair }> =
 
   const payload = (await response.json()) as { pairs?: TokenPair[] }
   const pairs = payload.pairs ?? []
-  const pairWithLinks = pairs.find((p) => {
-    const info = p.info
-    if (!info) return false
-    const hasLinks = Boolean(info.links && Object.keys(info.links).length > 0)
-    const hasWebsites = Boolean(info.websites && info.websites.length > 0)
-    const hasSocials = Boolean(info.socials && info.socials.length > 0)
-    return hasLinks || hasWebsites || hasSocials
+  const sortedPairs = [...pairs].sort((a, b) => {
+    const liquidityA = Number(a.liquidity?.usd ?? 0)
+    const liquidityB = Number(b.liquidity?.usd ?? 0)
+    if (liquidityB !== liquidityA) return liquidityB - liquidityA
+
+    const linksA = extractSocialLinks(a)
+    const linksB = extractSocialLinks(b)
+    const linkScoreA = Number(Boolean(linksA.website)) + Number(Boolean(linksA.twitter)) + Number(Boolean(linksA.telegram))
+    const linkScoreB = Number(Boolean(linksB.website)) + Number(Boolean(linksB.twitter)) + Number(Boolean(linksB.telegram))
+    return linkScoreB - linkScoreA
   })
-  const pair = pairWithLinks || pairs[0]
+  const pair = sortedPairs[0]
   if (!pair) throw new Error('TOKEN_NOT_FOUND')
   return { pair }
 }
@@ -986,6 +1008,37 @@ export const createHandler = (config?: AppConfig) => {
         warmed,
         skipped,
       })
+    }
+
+    if (method === 'GET' && pathname.startsWith('/price/')) {
+      const address = canonicalTokenAddress(pathname.slice('/price/'.length))
+      if (!isLikelyTokenAddress(address)) return textResponse('Not Found', 404)
+
+      const ip = getClientIp(request)
+      const rateLimit = await safeIncrWithExpiry(rlKey('rl', ip), 60)
+      if (rateLimit > RATE_LIMIT_PER_MINUTE) return textResponse('Rate limit exceeded', 429)
+
+      try {
+        const cached = await safeGet<CachedPayload<MarketPayload>>(priceCacheKey(address))
+        if (cached?.data?.pair) {
+          return jsonResponse(renderPricePayload(address, cached.data.pair))
+        }
+
+        const dex = await fetchDexScreener(address)
+        const priceData: MarketPayload = { pair: dex.pair }
+        await safeSet(
+          priceCacheKey(address),
+          { data: priceData, generatedAt: nowIso() },
+          PRICE_CACHE_TTL_SECONDS,
+        )
+
+        return jsonResponse(renderPricePayload(address, priceData.pair))
+      } catch (error) {
+        if (error instanceof Error && error.message === 'TOKEN_NOT_FOUND') {
+          return textResponse('Token not found', 404)
+        }
+        return textResponse('Internal server error', 500)
+      }
     }
 
     if (method === 'GET') {
